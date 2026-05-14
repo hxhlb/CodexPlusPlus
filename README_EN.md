@@ -20,6 +20,7 @@ Codex++ is an external enhancement launcher for the Codex App. It does not modif
 ## Table of Contents
 
 - [Community](#community)
+- [Sponsor](#sponsor)
 - [Support](#support)
 - [Quick Start](#quick-start)
 - [Highlights](#highlights)
@@ -42,6 +43,18 @@ Codex++ is an external enhancement launcher for the Codex App. It does not modif
 Scan the QR code to join the Codex++ discussion group, report issues, share usage notes, or suggest features:
 
 <img src="docs/images/discussion-group-qr.jpg" alt="Codex++ discussion group QR code" width="260">
+
+## Sponsor
+
+### RawChat | Codex Relay
+
+A long-running Codex relay provider with monthly plans, low-rate calls, high cache-hit performance, Pro/Plus account pools, and dedicated all-day maintenance.
+
+Website: [rawchat.cn](https://rawchat.cn)
+
+<p align="center">
+  <img src="docs/images/rawchat-sponsor.jpg" alt="RawChat Codex relay sponsor banner" width="620">
+</p>
 
 ## Support
 

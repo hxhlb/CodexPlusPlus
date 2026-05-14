@@ -142,7 +142,7 @@ class _Handler(BaseHTTPRequestHandler):
 
     def _send_asset(self, name: str) -> None:
         asset_name = unquote(name)
-        if asset_name not in {"sponsor-alipay.jpg", "sponsor-wechat.jpg"}:
+        if asset_name not in {"sponsor-alipay.jpg", "sponsor-wechat.jpg", "rawchat-sponsor.jpg"}:
             self._send_json({"error": "not found"}, status=404)
             return
         data = resources.files("codex_session_delete").joinpath("assets", asset_name).read_bytes()

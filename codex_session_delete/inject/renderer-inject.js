@@ -382,6 +382,17 @@
       .codex-plus-user-script-actions { display: grid; justify-items: end; gap: 8px; min-width: 120px; }
       .codex-plus-user-script-reload { border: 1px solid rgba(255,255,255,.18); border-radius: 7px; background: #3f3f46; color: #f3f4f6; font: 12px system-ui, sans-serif; padding: 6px 8px; }
       .codex-plus-sponsor-text { color: #d1d5db; font-size: 13px; line-height: 1.55; margin: 4px 0 12px; }
+      .codex-plus-ad-list { display: grid; gap: 14px; }
+      .codex-plus-ad-card { overflow: hidden; border: 1px solid rgba(96,165,250,.26); border-radius: 16px; background: linear-gradient(135deg, rgba(37,99,235,.18), rgba(255,255,255,.05)); box-shadow: 0 14px 36px rgba(0,0,0,.22); }
+      .codex-plus-ad-image { display: block; width: 100%; max-height: 360px; object-fit: cover; background: #dbeafe; }
+      .codex-plus-ad-content { padding: 14px; }
+      .codex-plus-ad-label { display: inline-flex; border: 1px solid rgba(147,197,253,.36); border-radius: 999px; color: #bfdbfe; font-size: 11px; line-height: 1; padding: 4px 8px; margin-bottom: 8px; }
+      .codex-plus-ad-title { margin: 0; color: #f8fafc; font-size: 17px; line-height: 1.35; }
+      .codex-plus-ad-description { margin: 6px 0 10px; color: #dbeafe; font-size: 13px; line-height: 1.55; }
+      .codex-plus-ad-highlights { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+      .codex-plus-ad-highlights span { border: 1px solid rgba(255,255,255,.14); border-radius: 999px; background: rgba(255,255,255,.08); color: #f3f4f6; font-size: 12px; padding: 4px 8px; }
+      .codex-plus-ad-link { display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; background: #2563eb; color: #ffffff; font-size: 13px; font-weight: 650; text-decoration: none; padding: 8px 12px; }
+      .codex-plus-sponsor-divider { height: 1px; background: rgba(255,255,255,.1); margin: 16px 0 12px; }
       .codex-plus-sponsor-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .codex-plus-sponsor-card { border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 10px; background: rgba(255,255,255,.04); text-align: center; }
       .codex-plus-sponsor-card-title { color: #f3f4f6; font-size: 13px; margin-bottom: 8px; }
@@ -597,6 +608,33 @@
     }
   }
 
+  const codexPlusSponsors = [
+    {
+      name: "RawChat｜Codex 中转站",
+      description: "老牌中转站，支持包月套餐。低倍率调用，高缓存命中，Pro/Plus 号池，全天专人维护。",
+      url: "https://rawchat.cn",
+      image: `${helperBase}/assets/rawchat-sponsor.jpg`,
+      highlights: ["支持包月套餐", "低倍率调用", "高缓存命中", "Pro/Plus 号池", "全天专人维护"],
+    },
+  ];
+
+  function renderCodexPlusSponsors() {
+    return codexPlusSponsors.map((sponsor) => `
+      <article class="codex-plus-ad-card">
+        <img class="codex-plus-ad-image" src="${escapeHtml(sponsor.image)}" alt="${escapeHtml(sponsor.name)}">
+        <div class="codex-plus-ad-content">
+          <div class="codex-plus-ad-label">赞助商</div>
+          <h3 class="codex-plus-ad-title">${escapeHtml(sponsor.name)}</h3>
+          <p class="codex-plus-ad-description">${escapeHtml(sponsor.description)}</p>
+          <div class="codex-plus-ad-highlights">
+            ${sponsor.highlights.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+          </div>
+          <a class="codex-plus-ad-link" href="${escapeHtml(sponsor.url)}" target="_blank" rel="noreferrer">访问 ${escapeHtml(new URL(sponsor.url).hostname)}</a>
+        </div>
+      </article>
+    `).join("");
+  }
+
   function selectCodexPlusTab(tab) {
     document.querySelectorAll(".codex-plus-modal-content").forEach((modal) => {
       modal.dataset.codexPlusActiveTab = tab;
@@ -624,7 +662,7 @@
         <div class="codex-plus-tabs" role="tablist" aria-label="Codex++">
           <button type="button" class="codex-plus-tab-button" data-codex-plus-tab="home" data-active="true">主页</button>
           <button type="button" class="codex-plus-tab-button" data-codex-plus-tab="userScripts" data-active="false">用户脚本</button>
-          <button type="button" class="codex-plus-tab-button" data-codex-plus-tab="sponsor" data-active="false">赞赏</button>
+          <button type="button" class="codex-plus-tab-button" data-codex-plus-tab="sponsor" data-active="false">赞助商</button>
         </div>
         <div class="codex-plus-modal-body">
           <div class="codex-plus-panel" data-codex-plus-panel="home">
@@ -695,7 +733,12 @@
             </div>
           </div>
           <div class="codex-plus-panel" data-codex-plus-panel="sponsor" hidden>
-            <div class="codex-plus-sponsor-text">如果 Codex++ 帮到了你，可以请我喝杯咖啡，或者随手赞赏支持一下继续维护。</div>
+            <div class="codex-plus-sponsor-text">感谢赞助商支持 Codex++ 继续维护。这里会展示适合 Codex 用户的服务，后续可继续添加更多赞助商。</div>
+            <div class="codex-plus-ad-list">
+              ${renderCodexPlusSponsors()}
+            </div>
+            <div class="codex-plus-sponsor-divider"></div>
+            <div class="codex-plus-sponsor-text">如果 Codex++ 帮到了你，也可以请我喝杯咖啡，或者随手赞赏支持一下继续维护。</div>
             <div class="codex-plus-sponsor-grid">
               <div class="codex-plus-sponsor-card">
                 <div class="codex-plus-sponsor-card-title">支付宝</div>
