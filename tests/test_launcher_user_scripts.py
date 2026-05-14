@@ -1,4 +1,4 @@
-from codex_session_delete.launcher import handle_bridge_request
+from codex_session_delete.launcher import handle_bridge_request, read_codex_config_model, read_codex_model_catalog
 from codex_session_delete.models import ExportResult, ExportStatus
 from codex_session_delete.user_scripts import UserScriptManager
 
@@ -42,6 +42,20 @@ class FakeRuntime:
         self.repaired = True
         return {"status": "ok", "message": "后端已修复"}
 
+    def codex_config_model(self):
+        return {"status": "ok", "model": "qwen3-coder", "model_provider": "dashscope", "provider_name": "DashScope", "models": ["qwen3-coder"]}
+
+    def codex_model_catalog(self):
+        return {
+            "status": "ok",
+            "model": "qwen3-coder",
+            "default_model": "qwen3-coder",
+            "model_provider": "dashscope",
+            "provider_name": "DashScope",
+            "models": ["qwen3-coder", "deepseek-coder"],
+            "sources": [{"type": "config", "status": "ok", "models": 2}],
+        }
+
 
 def test_handle_bridge_request_lists_user_scripts(tmp_path):
     builtin = tmp_path / "builtin"
@@ -79,6 +93,189 @@ def test_handle_bridge_request_reports_and_repairs_backend_status(tmp_path):
     assert status == {"status": "ok", "message": "后端已连接"}
     assert runtime.repaired is True
     assert repaired == {"status": "ok", "message": "后端已修复"}
+
+def test_handle_bridge_request_returns_codex_model_catalog(tmp_path):
+    manager = UserScriptManager(tmp_path / "builtin", tmp_path / "user", tmp_path / "config.json")
+    runtime = FakeRuntime(manager)
+
+    result = handle_bridge_request(FakeDeleteService(), FakeExportService(), "/codex-model-catalog", {}, runtime)
+
+    assert result["status"] == "ok"
+    assert result["model"] == "qwen3-coder"
+    assert result["models"] == ["qwen3-coder", "deepseek-coder"]
+
+
+def test_handle_bridge_request_keeps_legacy_codex_config_model_route(tmp_path):
+    manager = UserScriptManager(tmp_path / "builtin", tmp_path / "user", tmp_path / "config.json")
+    runtime = FakeRuntime(manager)
+
+    result = handle_bridge_request(FakeDeleteService(), FakeExportService(), "/codex-config-model", {}, runtime)
+
+    assert result["status"] == "ok"
+    assert result["models"] == ["qwen3-coder", "deepseek-coder"]
+
+
+def test_read_codex_config_model_uses_active_profile(tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text(
+        """
+model = "gpt-5.5"
+model_provider = "openai"
+profile = "china"
+
+[profiles.china]
+model = "qwen3-coder"
+model_provider = "dashscope"
+
+[model_providers.dashscope]
+name = "DashScope"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    result = read_codex_config_model(config)
+
+    assert result["status"] == "ok"
+    assert result["model"] == "qwen3-coder"
+    assert result["model_provider"] == "dashscope"
+    assert result["provider_name"] == "DashScope"
+    assert result["models"] == ["qwen3-coder"]
+
+
+def test_read_codex_model_catalog_fetches_models_from_config_provider(tmp_path):
+    config = tmp_path / "config.toml"
+    auth = tmp_path / "auth.json"
+    config.write_text(
+        """
+model_provider = "mycodex"
+model = "qwen3-coder"
+
+[model_providers.mycodex]
+name = "My Codex"
+base_url = "https://relay.example.com/v1"
+""".strip(),
+        encoding="utf-8",
+    )
+    auth.write_text('{"OPENAI_API_KEY":"sk-test"}', encoding="utf-8")
+    requests = []
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"object": "list", "data": [{"id": "qwen3-coder"}, {"id": "deepseek-coder"}]}
+
+    def fake_get(url, **kwargs):
+        requests.append((url, kwargs))
+        return Response()
+
+    result = read_codex_model_catalog(config, auth, env={}, requests_get=fake_get)
+
+    assert result["status"] == "ok"
+    assert result["default_model"] == "qwen3-coder"
+    assert result["models"] == ["qwen3-coder", "deepseek-coder"]
+    assert result["sources"][0]["type"] == "config"
+    assert result["sources"][0]["auth"] == "present"
+    assert requests[0][0] == "https://relay.example.com/v1/models"
+    assert requests[0][1]["headers"]["Authorization"] == "Bearer sk-test"
+
+
+def test_read_codex_model_catalog_merges_environment_and_config_sources(tmp_path):
+    config = tmp_path / "config.toml"
+    config.write_text(
+        """
+model_provider = "dashscope"
+
+[model_providers.dashscope]
+name = "DashScope"
+base_url = "https://dashscope.example.com/compatible-mode/v1"
+api_key = "config-key"
+""".strip(),
+        encoding="utf-8",
+    )
+    auth = tmp_path / "missing-auth.json"
+
+    class Response:
+        def __init__(self, payload):
+            self.status_code = 200
+            self.payload = payload
+
+        def json(self):
+            return self.payload
+
+    def fake_get(url, **kwargs):
+        if "env.example.com" in url:
+            return Response({"data": [{"id": "moonshot-v1"}, {"id": "qwen3-coder"}]})
+        return Response({"data": [{"id": "qwen3-coder"}, {"id": "deepseek-coder"}]})
+
+    result = read_codex_model_catalog(
+        config,
+        auth,
+        env={"OPENAI_BASE_URL": "https://env.example.com/v1", "OPENAI_API_KEY": "env-key"},
+        requests_get=fake_get,
+    )
+
+    assert result["status"] == "ok"
+    assert result["models"] == ["moonshot-v1", "qwen3-coder", "deepseek-coder"]
+    assert [source["type"] for source in result["sources"]] == ["environment", "config"]
+
+
+def test_read_codex_model_catalog_uses_auth_json_for_env_base_url(tmp_path):
+    config = tmp_path / "missing-config.toml"
+    auth = tmp_path / "auth.json"
+    auth.write_text('{"OPENAI_API_KEY":"sk-auth"}', encoding="utf-8")
+    requests = []
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"data": [{"id": "mimo-v2.5-pro"}]}
+
+    def fake_get(url, **kwargs):
+        requests.append((url, kwargs))
+        return Response()
+
+    result = read_codex_model_catalog(
+        config,
+        auth,
+        env={"OPENAI_BASE_URL": "https://user:pass@relay.example.com/v1?secret=1"},
+        requests_get=fake_get,
+    )
+
+    assert result["status"] == "ok"
+    assert result["models"] == ["mimo-v2.5-pro"]
+    assert requests[0][1]["headers"]["Authorization"] == "Bearer sk-auth"
+    assert result["sources"][0]["base_url"] == "https://relay.example.com/v1"
+    assert result["sources"][0]["endpoint"] == "https://relay.example.com/v1/models"
+
+
+def test_read_codex_model_catalog_uses_single_config_provider_without_model_provider(tmp_path):
+    config = tmp_path / "config.toml"
+    auth = tmp_path / "auth.json"
+    config.write_text(
+        """
+[model_providers.only]
+name = "Only Provider"
+base_url = "https://only.example.com/v1"
+api_key = "config-key"
+""".strip(),
+        encoding="utf-8",
+    )
+
+    class Response:
+        status_code = 200
+
+        def json(self):
+            return {"data": [{"id": "qwen3-coder"}]}
+
+    result = read_codex_model_catalog(config, auth, env={}, requests_get=lambda *args, **kwargs: Response())
+
+    assert result["status"] == "ok"
+    assert result["model_provider"] == "only"
+    assert result["provider_name"] == "Only Provider"
+    assert result["models"] == ["qwen3-coder"]
 
 
 def test_handle_bridge_request_exports_markdown(tmp_path):
