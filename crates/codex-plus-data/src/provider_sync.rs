@@ -443,18 +443,19 @@ fn apply_sqlite_update(
     if !path.exists() {
         return Ok(0);
     }
-    let db = Connection::open(path)?;
+    let mut db = Connection::open(path)?;
     let columns = table_columns(&db, "threads")?;
     if !columns.contains("model_provider") {
         return Ok(0);
     }
-    let provider_rows = db.execute(
+    let tx = db.transaction()?;
+    let provider_rows = tx.execute(
         "UPDATE threads SET model_provider = ?1 WHERE COALESCE(model_provider, '') <> ?1",
         [target_provider],
     )?;
     if columns.contains("has_user_event") {
         for thread_id in user_event_thread_ids {
-            db.execute(
+            tx.execute(
                 "UPDATE threads SET has_user_event = 1 WHERE id = ?1 AND COALESCE(has_user_event, 0) <> 1",
                 [thread_id],
             )?;
@@ -462,12 +463,13 @@ fn apply_sqlite_update(
     }
     if columns.contains("cwd") {
         for (thread_id, cwd) in cwd_by_thread_id {
-            db.execute(
+            tx.execute(
                 "UPDATE threads SET cwd = ?1 WHERE id = ?2 AND COALESCE(cwd, '') <> ?1",
                 (cwd, thread_id),
             )?;
         }
     }
+    tx.commit()?;
     Ok(provider_rows)
 }
 
